@@ -1,6 +1,8 @@
 r"""
 :py:mod:`torchjpeg.quantization.ijg` provides functions which match the Independent JPEG Group's libjpeg quantization method.
 """
+from typing import Callable
+
 import torch
 from torch import Tensor
 
@@ -104,7 +106,7 @@ def get_coefficients_for_qualities(quality: Tensor, table: str = "luma") -> Tens
     return mat.view(-1, 1, 8, 8)
 
 
-def quantize_at_quality(dct: Tensor, quality: int, table: str = "luma") -> Tensor:
+def quantize_at_quality(dct: Tensor, quality: int, table: str = "luma", round_func: Callable[[Tensor], Tensor] = torch.round) -> Tensor:
     r"""
     Quantizes using a scalar quality instead of a quantization matrix. Uses IJG quantization matrices.
 
@@ -117,7 +119,7 @@ def quantize_at_quality(dct: Tensor, quality: int, table: str = "luma") -> Tenso
         Tensor: Quantized DCT coefficients.
     """
     mat = get_coefficients_for_qualities(torch.tensor([quality]), table=table)
-    return quantize(dct, mat)
+    return quantize(dct, mat, round_func)
 
 
 def dequantize_at_quality(dct: Tensor, quality: int, table: str = "luma") -> Tensor:
@@ -133,7 +135,7 @@ def dequantize_at_quality(dct: Tensor, quality: int, table: str = "luma") -> Ten
     return dequantize(dct, mat)
 
 
-def compress_coefficients(batch: Tensor, quality: int, table: str = "luma") -> Tensor:
+def compress_coefficients(batch: Tensor, quality: int, table: str = "luma", round_func: Callable[[Tensor], Tensor] = torch.round) -> Tensor:
     r"""
     A high level function that takes a batch of pixels in [0, 1] and returns quantized DCT coefficients.
 
@@ -147,7 +149,7 @@ def compress_coefficients(batch: Tensor, quality: int, table: str = "luma") -> T
     """
     batch = batch * 255 - 128
     d = batch_dct(batch)
-    d = quantize_at_quality(d, quality, table=table)
+    d = quantize_at_quality(d, quality, table=table, round_func=round_func)
     return d
 
 
