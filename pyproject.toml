@@ -36,14 +36,14 @@ include = ["src/libjpeg/*"]
 script = "build.py"
 generate-setup-file = true
 
-[tool.poetry.dependencies]
-
-python = ">= 3.8, < 4.0"
-
-torch = ">= 2.0.0, < 2.0.1"
-torchvision = ">= 0.15.1, < 0.15.2"
-
-Pillow = ">=7.2.0"
+# [tool.poetry.dependencies]
+# 
+# python = ">= 3.8, < 4.0"
+# 
+# torch = ">= 2.0.0, < 2.0.1"
+# torchvision = ">= 0.15.1, < 0.15.2"
+# 
+# Pillow = ">=7.2.0"
 
 [tool.poetry.group.dev.dependencies]
 
@@ -126,6 +126,6 @@ line_length = 1000
 
 requires = [
     "poetry-core",
-    "torch==2.0.0",
+    "torch",
 ]
 build-backend = "poetry.core.masonry.api"
