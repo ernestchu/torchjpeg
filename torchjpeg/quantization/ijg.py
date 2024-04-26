@@ -106,7 +106,7 @@ def get_coefficients_for_qualities(quality: Tensor, table: str = "luma") -> Tens
     return mat.view(-1, 1, 8, 8)
 
 
-def quantize_at_quality(dct: Tensor, quality: int, table: str = "luma", round_func: Callable[[Tensor], Tensor] = torch.round) -> Tensor:
+def quantize_at_quality(dct: Tensor, qualities: Tensor, table: str = "luma", round_func: Callable[[Tensor], Tensor] = torch.round) -> Tensor:
     r"""
     Quantizes using a scalar quality instead of a quantization matrix. Uses IJG quantization matrices.
 
@@ -118,11 +118,11 @@ def quantize_at_quality(dct: Tensor, quality: int, table: str = "luma", round_fu
     Returns:
         Tensor: Quantized DCT coefficients.
     """
-    mat = get_coefficients_for_qualities(torch.tensor([quality]), table=table)
+    mat = get_coefficients_for_qualities(qualities, table=table)
     return quantize(dct, mat, round_func)
 
 
-def dequantize_at_quality(dct: Tensor, quality: int, table: str = "luma") -> Tensor:
+def dequantize_at_quality(dct: Tensor, qualities: Tensor, table: str = "luma") -> Tensor:
     r"""
     Dequantizes using a scalar quality instead of a quantization matrix. uses IJG quantization matrices.
 
@@ -131,11 +131,11 @@ def dequantize_at_quality(dct: Tensor, quality: int, table: str = "luma") -> Ten
         quality (int): A scalar in [0, 100] specifying the quality that the coefficients were quantized at.
         table (str): One of "luma" or "chroma" to choose the desired set of tables.
     """
-    mat = get_coefficients_for_qualities(torch.tensor([quality]), table=table)
+    mat = get_coefficients_for_qualities(qualities, table=table)
     return dequantize(dct, mat)
 
 
-def compress_coefficients(batch: Tensor, quality: int, table: str = "luma", round_func: Callable[[Tensor], Tensor] = torch.round) -> Tensor:
+def compress_coefficients(batch: Tensor, qualities: Tensor, table: str = "luma", round_func: Callable[[Tensor], Tensor] = torch.round) -> Tensor:
     r"""
     A high level function that takes a batch of pixels in [0, 1] and returns quantized DCT coefficients.
 
@@ -149,11 +149,11 @@ def compress_coefficients(batch: Tensor, quality: int, table: str = "luma", roun
     """
     batch = batch * 255 - 128
     d = batch_dct(batch)
-    d = quantize_at_quality(d, quality, table=table, round_func=round_func)
+    d = quantize_at_quality(d, qualities, table=table, round_func=round_func)
     return d
 
 
-def decompress_coefficients(batch: Tensor, quality: int, table: str = "luma") -> Tensor:
+def decompress_coefficients(batch: Tensor, qualities: Tensor, table: str = "luma") -> Tensor:
     r"""
     A high level function that converts quantized DCT coefficients to pixels.
 
@@ -165,7 +165,7 @@ def decompress_coefficients(batch: Tensor, quality: int, table: str = "luma") ->
     Returns:
         Tensor: A batch of image pixels.
     """
-    d = dequantize_at_quality(batch, quality, table=table)
+    d = dequantize_at_quality(batch, qualities, table=table)
     d = batch_idct(d)
     d = (d + 128) / 255
     return d
@@ -176,12 +176,13 @@ def mask_coefficients(batch: Tensor, qualities: Tensor, table: str = "luma", dow
     dct = batch_dct(batch)
     
     mat = get_coefficients_for_qualities(qualities, table=table)
-    mat = mat.to(device=dct.device, dtype=dct.dtype)
+    mat = mat.unsqueeze(1).to(device=dct.device, dtype=dct.dtype)
+    qualities = qualities.to(device=dct.device, dtype=dct.dtype)
     
     dct_blocks = blockify(dct, 8)
     mask = ((
         round_func(dct_blocks.detach() / mat).abs() + # no compression if not quantized to 0 (for backprop)
-        ((qualities > 100) * 1.).unsqueeze(1) # no compression if quality > 100
+        ((qualities > 100) * 1.).view(-1, *([1] * (dct_blocks.ndim - 1))) # no compression if quality > 100
     ) > 0) * 1.
     masked_blocks = dct_blocks * mask
     masked = deblockify(masked_blocks, (dct.shape[2], dct.shape[3]))

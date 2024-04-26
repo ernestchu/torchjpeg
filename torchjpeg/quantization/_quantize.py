@@ -26,7 +26,7 @@ def quantize(dct: Tensor, mat: Tensor, round_func: Callable[[Tensor], Tensor] = 
 
         For DCT coefficients :math:`D` and quantization matrix :math:`Q`.
     """
-    mat = mat.to(device=dct.device, dtype=dct.dtype)
+    mat = mat.unsqueeze(1).to(device=dct.device, dtype=dct.dtype)
     dct_blocks = blockify(dct, 8)
     quantized_blocks = round_func(dct_blocks / mat)
     quantized = deblockify(quantized_blocks, (dct.shape[2], dct.shape[3]))
@@ -52,7 +52,7 @@ def dequantize(dct: Tensor, mat: Tensor) -> Tensor:
 
         For quantized DCT coefficients :math:`\widetilde{D}` and quantization matrix :math:`Q`.
     """
-    mat = mat.to(device=dct.device, dtype=dct.dtype)
+    mat = mat.unsqueeze(1).to(device=dct.device, dtype=dct.dtype)
     dct_blocks = blockify(dct, 8)
     dequantized_blocks = dct_blocks * mat
     dequantized = deblockify(dequantized_blocks, (dct.shape[2], dct.shape[3]))
