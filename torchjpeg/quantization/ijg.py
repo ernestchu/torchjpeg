@@ -171,15 +171,19 @@ def decompress_coefficients(batch: Tensor, quality: int, table: str = "luma") ->
     return d
 
 
-def mask_coefficients(batch: Tensor, quality: int, table: str = "luma", downsample=False, round_func: Callable[[Tensor], Tensor] = torch.round) -> Tensor:
+def mask_coefficients(batch: Tensor, qualities: Tensor, table: str = "luma", downsample=False, round_func: Callable[[Tensor], Tensor] = torch.round) -> Tensor:
     batch = batch * 255 - 128
     dct = batch_dct(batch)
     
-    mat = get_coefficients_for_qualities(torch.tensor([quality]), table=table)
+    mat = get_coefficients_for_qualities(qualities, table=table)
     mat = mat.to(device=dct.device, dtype=dct.dtype)
     
     dct_blocks = blockify(dct, 8)
-    masked_blocks = dct_blocks * ((round_func(dct_blocks.detach() / mat) != 0) * 1.)
+    mask = ((
+        round_func(dct_blocks.detach() / mat).abs() + # no compression if not quantized to 0 (for backprop)
+        ((qualities > 100) * 1.).unsqueeze(1) # no compression if quality > 100
+    ) > 0) * 1.
+    masked_blocks = dct_blocks * mask
     masked = deblockify(masked_blocks, (dct.shape[2], dct.shape[3]))
     
     if downsample:
