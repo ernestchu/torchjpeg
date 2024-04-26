@@ -6,7 +6,7 @@ from typing import Callable
 import torch
 from torch import Tensor
 
-from torchjpeg.dct import batch_dct, batch_idct
+from torchjpeg.dct import batch_dct, batch_idct, double_nn_dct, half_nn_dct, blockify, deblockify
 
 from ._quantize import dequantize, quantize
 
@@ -167,5 +167,24 @@ def decompress_coefficients(batch: Tensor, quality: int, table: str = "luma") ->
     """
     d = dequantize_at_quality(batch, quality, table=table)
     d = batch_idct(d)
+    d = (d + 128) / 255
+    return d
+
+
+def mask_coefficients(batch: Tensor, quality: int, table: str = "luma", downsample=False, round_func: Callable[[Tensor], Tensor] = torch.round) -> Tensor:
+    batch = batch * 255 - 128
+    dct = batch_dct(batch)
+    
+    mat = get_coefficients_for_qualities(torch.tensor([quality]), table=table)
+    mat = mat.to(device=dct.device, dtype=dct.dtype)
+    
+    dct_blocks = blockify(dct, 8)
+    masked_blocks = dct_blocks * ((round_func(dct_blocks.detach() / mat) != 0) * 1.)
+    masked = deblockify(masked_blocks, (dct.shape[2], dct.shape[3]))
+    
+    if downsample:
+        masked = double_nn_dct(half_nn_dct(masked))
+        
+    d = batch_idct(masked)
     d = (d + 128) / 255
     return d
